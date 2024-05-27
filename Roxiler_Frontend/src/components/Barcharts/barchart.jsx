@@ -10,7 +10,7 @@ const BarChartComponent = (props) => {
   useEffect(() => {
     const getBarChartData = async () => {
       try {
-        const response = await axios.get(`https://s3.amazonaws.com/roxiler.com/product_transaction.json?month=${selectedMonth}`);
+        const response = await axios.get(`http://localhost:3000/bar-chart?month=${selectedMonth}`);
         setBarChartData(response.data);
       } catch (error) {
         console.error('Error fetching bar chart data:', error);

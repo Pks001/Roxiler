@@ -1,259 +1,434 @@
-// const fetch = require('node-fetch');
-const express = require('express');
-const bodyparser = require('body-parser');
+let express = require("express");
 const cors = require('cors');
-const mongoose = require('mongoose');
-const axios = require('axios');
+let app = express();
+module.exports = app;
 
-
-mongoose.connect('mongodb://localhost:27017/mydb');
-const connection = mongoose.connection;
-connection.once('open', function() {
-    console.log("MongoDB database connection established successfully");
-});
-
-const app = express();
-app.use(bodyparser.json());
-app.use(bodyparser.urlencoded({ extended: false }));
 app.use(cors());
 
-// async function getUser(){
-//     const response = await fetch('https://s3.amazonaws.com/roxiler.com/roxiler.json');
-//     const data = await response.json();
-const url = 'https://s3.amazonaws.com/roxiler.com/product_transaction.json';
-    axios.get(url)
-        .then(response => {
-            const data = response.data;
-            // console.log(data);
 
 
-const transaction = new mongoose.Schema({
 
-    id: {
-        type: Number,
-        required: true
-    },
-    title: {
-        type: String,
-        required: true
-    },
-    price: {
-        type: Number,
-        required: true
-    },
-    description: {
-        type: String,
+app.use(express.json());
+let sqlite = require("sqlite");
+let sqlite3 = require("sqlite3");
 
-    },
-    category: {
-        type: String,
-        required: true
-    },
-    image: {
-        type: String,
-    },
-    sold: {
-        type: Boolean,
-        default: false
-    },
-    dateOfSale: {
-        type: Date,
+let { open } = sqlite;
+let path = require("path");
+let dbpath = path.join(__dirname, "database.db");
+
+let db = null;
+let intializeDBAndServer = async () => {
+  db = await open({
+    filename: dbpath,
+    driver: sqlite3.Database,
+  });
+  app.listen(3000, () => {
+    console.log("Server Started at http://localhost:3000/");
+  });
+};
+intializeDBAndServer();
+
+
+//   Create an API to list the all transactions
+//   - API should support search and pagination on product transactions
+//   - Based on the value of search parameters, it should match search text on product
+//   title/description/price and based on matching result it should return the product
+//   transactions
+//   - If search parameter is empty then based on applied pagination it should return all the
+//   records of that page number
+//   - Default pagination values will be like page = 1, per page = 10
+// API to list all transactions with search and pagination
+
+//http://localhost:3000/transactions?page=1$perPage=10&search=''
+
+// API to list all transactions with search and pagination
+
+//http://localhost:3000/transactions?page=1$perPage=10&search=''
+app.get('/', async (req, res) => {
+    try {
+        res.send('Welcome, this is Roxiler company assignment backend domain.Please access any path to get the data');
+    } catch (e) {
+        console.error(e.message);
+        res.status(500).json({ error: 'Internal Server Error' });
     }
 });
-const Transaction = mongoose.model('Transaction', transaction);
 
 
+app.get('/transactions', async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const perPage = parseInt(req.query.perPage) || 10;
+        const search = req.query.search ? req.query.search.toLowerCase() : '';
+        const selectedMonth = req.query.month.toLowerCase() || 'march';
+        
 
-async function getPosts() {
-    for (let i = 0; i < data.length; i++) {
-        // console.log(data[i].title)
-        const product = new Transaction({
-            id: data[i].id,
-            title: data[i].title,
-            price: data[i].price,
-            description: data[i].description,
-            category: data[i].category,
-            image: data[i].image,
-            sold: data[i].sold,
-            dateOfSale: data[i].dateOfSale
+
+        const monthMap = {
+            'january': '01',
+            'february': '02',
+            'march': '03',
+            'april': '04',
+            'may': '05',
+            'june': '06',
+            'july': '07',
+            'august': '08',
+            'september': '09',
+            'october': '10',
+            'november': '11',
+            'december': '12',
+        };
+
+        const numericMonth = monthMap[selectedMonth.toLowerCase()];
+
+        // Construct SQL query with search and pagination
+        const sqlQuery = `
+        SELECT *
+        FROM products
+        WHERE
+            strftime('%m', dateOfSale) = ?
+            AND (
+                lower(title) LIKE '%${search}%'
+                OR lower(description) LIKE '%${search}%'
+                OR CAST(price AS TEXT) LIKE '%${search}%'
+            )
+        LIMIT ${perPage} OFFSET ${(page - 1) * perPage};
+    `;
+
+        // Execute the SQL query
+        const rows = await db.all(sqlQuery,[numericMonth]);
+
+        res.json({
+            page,
+            perPage,
+            transactions: rows
         });
-        try {
-            const savedProduct = await product.save();
-            // console.log(savedProduct);
-        } catch (err) {
-            console.log(err);
-        }
+
+    } catch (e) {
+        console.error(e.message);
+        res.status(500).json({ error: 'Internal Server Error' });
     }
+});
+
+// GET
+// Create an API for statistics
+// - Total sale amount of selected month
+// - Total number of sold items of selected month
+// - Total number of not sold items of selected month
+
+//http://localhost:3000/statistics?month=january
+app.get('/statistics', async (req, res) => {
+    try {
+        console.log('Request received for /statistics');
+        const selectedMonth = req.query.month || 'march';
+        console.log('Selected Month:', selectedMonth);
+
+        if (!selectedMonth) {
+            return res.status(400).json({ error: 'Month parameter is required.' });
+        }
+
+        // Convert month names to numers
+        const monthMap = {
+            'january': '01',
+            'february': '02',
+            'march': '03',
+            'april': '04',
+            'may': '05',
+            'june': '06',
+            'july': '07',
+            'august': '08',
+            'september': '09',
+            'october': '10',
+            'november': '11',
+            'december': '12',
+        };
+
+        const numericMonth = monthMap[selectedMonth.toLowerCase()];
+
+        if (!numericMonth) {
+            return res.status(400).json({ error: 'Invalid month name.' });
+        }
+
+        // SQL query to get statistics for the given month
+        const sqlQuery = `
+        SELECT
+            SUM(CASE WHEN sold = 1 THEN price ELSE 0 END) as totalSaleAmount,
+            COUNT(CASE WHEN sold = 1 THEN 1 END) as totalSoldItems,
+            COUNT(CASE WHEN sold = 0 THEN 1 END) as totalNotSoldItems
+        FROM products
+        WHERE strftime('%m', dateOfSale) = ?;
+        `;
+
+        // Execute the SQL query
+        const statistics = await db.get(sqlQuery, [numericMonth]);
+
+        if (!statistics) {
+            return res.status(404).json({ error: 'No data found for the selected month.' });
+        }
+
+        res.json({
+            selectedMonth,
+            totalSaleAmount: Math.floor(statistics.totalSaleAmount) || 0,
+            totalSoldItems: statistics.totalSoldItems || 0,
+            totalNotSoldItems: statistics.totalNotSoldItems || 0
+        });
+    } catch (e) {
+        console.error(e.message);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+
+// GET
+// Create an API for bar chart ( the response should contain price range and the number
+// of items in that range for the selected month regardless of the year )
+// - 0 - 100
+// - 101 - 200
+// - 201-300
+// - 301-400
+// - 401-500
+// - 501 - 600
+// - 601-700
+// - 701-800
+// - 801-900
+// - 901-above
+
+//http://localhost:3000/bar-chart?month=january
+app.get('/bar-chart', async (req, res) => {
+    try {
+        const selectedMonth = req.query.month || 'march';
+
+            // Convert month names to numers
+            const monthMap = {
+                'january': '01',
+                'february': '02',
+                'march': '03',
+                'april': '04',
+                'may': '05',
+                'june': '06',
+                'july': '07',
+                'august': '08',
+                'september': '09',
+                'october': '10',
+                'november': '11',
+                'december': '12',
+            };
+    
+            
+
+        if (!selectedMonth) {
+            return res.status(400).json({ error: 'Month parameter is required.' });
+        }
+
+        const numericMonth = monthMap[selectedMonth.toLowerCase()];
+        // Construct SQL query to get bar chart data for the selected month
+        const sqlQuery = `
+                SELECT
+                priceRanges.priceRange,
+                COUNT(products.price) as itemCount
+            FROM (
+                SELECT '0 - 100' as priceRange, 0 as MIN_RANGE, 100 as MAX_RANGE
+                UNION SELECT '101 - 200', 101, 200
+                UNION SELECT '201 - 300', 201, 300
+                UNION SELECT '301 - 400', 301, 400
+                UNION SELECT '401 - 500', 401, 500
+                UNION SELECT '501 - 600', 501, 600
+                UNION SELECT '601 - 700', 601, 700
+                UNION SELECT '701 - 800', 701, 800
+                UNION SELECT '801 - 900', 801, 900
+                UNION SELECT '901-above', 901, 9999999
+            ) as priceRanges
+            LEFT JOIN products ON strftime('%m', dateOfSale) = ? AND price BETWEEN MIN_RANGE AND MAX_RANGE
+            GROUP BY priceRanges.priceRange;
+        `;
+
+        // Execute the SQL query
+        const barChartData = await db.all(sqlQuery, [numericMonth]);
+
+        res.json(barChartData);
+    } catch (e) {
+        console.error(e.message);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// GET
+// Create an API for pie chart Find unique categories and number of items from that
+// category for the selected month regardless of the year.
+// For example :
+// - X category : 20 (items)
+// - Y category : 5 (items)
+// - Z category : 3 (items)
+
+//http://localhost:3000/pie-chart?month=january
+app.get('/pie-chart', async (req, res) => {
+    try {
+        const selectedMonth = req.query.month || 'march';
+
+        if (!selectedMonth) {
+            return res.status(400).json({ error: 'Month parameter is required.' });
+        }
+
+        // Convert month names to numbers
+        const monthMap = {
+            'january': '01',
+            'february': '02',
+            'march': '03',
+            'april': '04',
+            'may': '05',
+            'june': '06',
+            'july': '07',
+            'august': '08',
+            'september': '09',
+            'october': '10',
+            'november': '11',
+            'december': '12',
+        };
+
+        const numericMonth = monthMap[selectedMonth.toLowerCase()];
+
+        // Construct SQL query to get pie chart data for the selected month
+        const sqlQuery = `
+          SELECT DISTINCT
+            category, 
+            COUNT(*) as itemCount
+          FROM products
+          WHERE strftime('%m', dateOfSale) = ?
+          GROUP BY category;
+        `;
+
+        // Execute the SQL query
+        const pieChartData = await db.all(sqlQuery, [numericMonth]);
+
+        res.json(pieChartData);
+    } catch (e) {
+        console.error(e.message);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+
+
+app.get('/combined-response', async (req, res) => {
+    try {
+        const selectedMonth = req.query.month || 'march';
+        const {search, page, perPage} = req.query
+
+        if (!selectedMonth) {
+            return res.status(400).json({ error: 'Month parameter is required.' });
+        }
+
+
+        const monthMap = {
+            'january': '01',
+            'february': '02',
+            'march': '03',
+            'april': '04',
+            'may': '05',
+            'june': '06',
+            'july': '07',
+            'august': '08',
+            'september': '09',
+            'october': '10',
+            'november': '11',
+            'december': '12',
+        };
+
+        const numericMonth = monthMap[selectedMonth.toLowerCase()];
+
+        // Fetch data from the four APIs
+        const transactionsData = await fetchTransactions(numericMonth,search, page || 1, perPage || 10);
+        const statisticsData = await fetchStatistics(numericMonth);
+        const barChartData = await fetchBarChart(numericMonth);
+        const pieChartData = await fetchPieChart(numericMonth);
+
+        // Combine the responses into a single JSON object
+        const combinedResponse = {
+            transactions: transactionsData,
+            statistics: statisticsData,
+            barChart: barChartData,
+            pieChart: pieChartData,
+        };
+
+        res.json(combinedResponse);
+    } catch (e) {
+        console.error(e.message);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// Function to fetch transactions data
+// Function to fetch transactions data with search, pagination, and month filter
+async function fetchTransactions(numericMonth, search, page, perPage) {
+    // SQL query with search, month filter, and pagination
+    const sqlQuery = `
+        SELECT *
+        FROM products
+        WHERE
+            strftime('%m', dateOfSale) = ?
+            AND (
+                lower(title) LIKE '%${search}%'
+                OR lower(description) LIKE '%${search}%'
+                OR CAST(price AS TEXT) LIKE '%${search}%'
+            )
+        LIMIT ${perPage} OFFSET ${(page - 1) * perPage};
+    `;
+
+    const transactionsData = await db.all(sqlQuery, [numericMonth]);
+    return transactionsData;
 }
 
-app.get('/products', async(req, res) => {
-    const products = await Transaction.find();
-    res.send(products);
-});
+// Function to fetch statistics data
+async function fetchStatistics(numericMonth) {
+    const sqlQuery = `
+      SELECT
+        CAST(SUM(CASE WHEN sold = 1 THEN price ELSE 0 END) as INT) as totalSaleAmount,
+        COUNT(CASE WHEN sold = 1 THEN 1 END) as totalSoldItems,
+        COUNT(CASE WHEN sold = 0 THEN 1 END) as totalNotSoldItems
+      FROM products
+      WHERE strftime('%m', dateOfSale) = ?;
+    `;
 
-// Task 2
-app.get('/salesMonth', async(req, res) => {
-    const map1 = new Map();
-    map1.set("January", "01");
-    map1.set("February", "02");
-    map1.set("March", "03");
-    map1.set("April", "04");
-    map1.set("May", "05");
-    map1.set("June", "06");
-    map1.set("July", "07");
-    map1.set("August", "08");
-    map1.set("September", "09");
-    map1.set("October", "10");
-    map1.set("November", "11");
-    map1.set("December", "12");
-    var search = req.query.keyword;
-    // console.log(req.query.keyword);
-    // search.toString();
+    const statisticsData = await db.get(sqlQuery, [numericMonth]);
+    return statisticsData;
+}
 
-    let sales = 0,
-        soldItems = 0,
-        totalItems = 0;
-    for (let i = 0; i < data.length; i++) {
-        let originalString = data[i].dateOfSale;
-        let sold = data[i].sold;
-        originalString.toString();
-        let text = originalString.substring(5, 7);
-        if (text == map1.get(search)) {
-            sales += data[i].price;
-            totalItems += 1;
-            if (sold == true)
-                soldItems += 1;
-        }
-    }
-    res.send(`The Total Sale in this month: ${ sales }, The Total Number of Sales in this month: ${ soldItems }, Total number of not sold items of selected month: ${totalItems-soldItems}`);
-});
+// Function to fetch bar chart data
+async function fetchBarChart(numericMonth) {
+    const sqlQuery = `
+    SELECT
+      CASE
+        WHEN price BETWEEN 0 AND 100 THEN '0 - 100'
+        WHEN price BETWEEN 101 AND 200 THEN '101 - 200'
+        WHEN price BETWEEN 201 AND 300 THEN '201 - 300'
+        WHEN price BETWEEN 301 AND 400 THEN '301 - 400'
+        WHEN price BETWEEN 401 AND 500 THEN '401 - 500'
+        WHEN price BETWEEN 501 AND 600 THEN '501 - 600'
+        WHEN price BETWEEN 601 AND 700 THEN '601 - 700'
+        WHEN price BETWEEN 701 AND 800 THEN '701 - 800'
+        WHEN price BETWEEN 801 AND 900 THEN '801 - 900'
+        WHEN price >= 901 THEN '901-above'
+      END as priceRange,
+      COUNT(*) as itemCount
+    FROM products
+    WHERE strftime('%m', dateOfSale) = ?
+    GROUP BY priceRange;
+  `;
 
-//Task 3
-app.get('/barChart', (req, res) => {
+  const barChartData = await db.all(sqlQuery, [numericMonth]);
+  return barChartData;
+}
 
-    const map1 = new Map();
-    map1.set("January", "01");
-    map1.set("February", "02");
-    map1.set("March", "03");
-    map1.set("April", "04");
-    map1.set("May", "05");
-    map1.set("June", "06");
-    map1.set("July", "07");
-    map1.set("August", "08");
-    map1.set("September", "09");
-    map1.set("October", "10");
-    map1.set("November", "11");
-    map1.set("December", "12");
-    var search = req.query.keyword;
-    search = ""+search;
+// Function to fetch pie chart data
+async function fetchPieChart(numericMonth) {
+    const sqlQuery = `
+      SELECT DISTINCT
+        category,
+        COUNT(*) as itemCount
+      FROM products
+      WHERE strftime('%m', dateOfSale) = ?
+      GROUP BY category;
+    `;
 
-    const map2 = new Map();
-    map2.set(100, 0);
-    map2.set(200, 0);
-    map2.set(300, 0);
-    map2.set(400, 0);
-    map2.set(500, 0);
-    map2.set(600, 0);
-    map2.set(700, 0);
-    map2.set(800, 0);
-    map2.set(900, 0);
-    map2.set(901, 0);
-    // Group transactions by price range
-    for (let i = 0; i < data.length; i++) {
-        let originalString = data[i].dateOfSale;
-        let sold = data[i].sold;
-        originalString.toString();
-        let text = originalString.substring(5, 7);
-        if (text == map1.get(search)) {
-            if (data[i].price < 100)
-                map2.set(100, map2.get(100) + 1);
-            else if (data[i].price < 200)
-                map2.set(200, map2.get(200) + 1);
-            else if (data[i].price < 300)
-                map2.set(300, map2.get(300) + 1);
-            else if (data[i].price < 400)
-                map2.set(400, map2.get(400) + 1);
-            else if (data[i].price < 500)
-                map2.set(500, map2.get(500) + 1);
-            else if (data[i].price < 600)
-                map2.set(600, map2.get(600) + 1);
-            else if (data[i].price < 700)
-                map2.set(700, map2.get(700) + 1);
-            else if (data[i].price < 800)
-                map2.set(800, map2.get(800) + 1);
-            else if (data[i].price < 900)
-                map2.set(900, map2.get(900) + 1);
-            else
-                map2.set(901, map2.get(901) + 1);
-        }
-    }
-    res.setHeader('Content-Type', 'text/html');
-    res.write(`<h2>Price range and the number of items in that range for the selected month regardless of the year</h2>`);
-    for (let [key, value] of map2) {
-        res.write("< " + key + " = " + value + `<br/>`);
-        //console.log("<" + key + "=" + value);
-    }
-
-});
-
-
-//Task 4
-
-app.get('/pieChart', async(req, res) => {
-    const map1 = new Map();
-    map1.set("January", "01");
-    map1.set("February", "02");
-    map1.set("March", "03");
-    map1.set("April", "04");
-    map1.set("May", "05");
-    map1.set("June", "06");
-    map1.set("July", "07");
-    map1.set("August", "08");
-    map1.set("September", "09");
-    map1.set("October", "10");
-    map1.set("November", "11");
-    map1.set("December", "12");
-    var search = req.query.keyword;
-    search=""+search
-    // console.log(search);
-    // console.log(map1.get(search)); // getting Month Number
-
-    const map2 = new Map();
-    for (let i = 0; i < data.length; i++) {
-        let originalString = data[i].dateOfSale;
-        originalString.toString();
-        let text = originalString.substring(5, 7);
-        if (text == map1.get(search)) {
-            let category = data[i].category;
-            category.toString();
-            map2.set(category, 0);
-        }
-
-    }
-    for (let i = 0; i < data.length; i++) {
-        let originalString = data[i].dateOfSale;
-        originalString.toString();
-        let text = originalString.substring(5, 7);
-        if (text == map1.get(search)) {
-            let category = data[i].category;
-            // console.log(category);
-            category.toString();
-            map2.set(category, map2.get(category) + 1);
-            // console.log(map2.get(category));
-        }
-    }
-    res.setHeader('Content-Type', 'text/html');
-    res.write(`<h2>Unique categories and number of items from that category for the selected month</h2>`);
-    for (let [key, value] of map2) {
-        res.write(key + " category: " + value + `<br/>`);
-        // console.log(key + " category = " + value);
-    }
-});
-
-        });
-
-
-
-
-const port = 3000;
-app.listen(port, () => console.log(`Hello world app listening on port ${port}!`));
+    const pieChartData = await db.all(sqlQuery, [numericMonth]);
+    return pieChartData;
+}

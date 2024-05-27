@@ -5,7 +5,7 @@ import Transactions from './components/Transactions/transactions';
 function App() {
 
   return (
-      <div className='app-container'>
+      <div className='app-container' align='center'>
       <Transactions />
   
     </div>

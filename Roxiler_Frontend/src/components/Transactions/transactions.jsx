@@ -71,7 +71,7 @@ const Transactions = () => {
 
 useEffect(()=>{
     const getTransactions = async ()=>{
-        const list = await axios.get(`https://s3.amazonaws.com/roxiler.com/product_transaction.json?month=${selectedMonth}&page=${page}&search=${searchInput}&perPage=10`)
+        const list = await axios.get(`http://localhost:3000/transactions?month=${selectedMonth}&page=${page}&search=${searchInput}&perPage=10`)
         // `https://roxiler-backend-alpha.vercel.app?page=${page}&perPage=10&search=${searchInput}&month=${selectedMonth}`
         if(list){
             console.log(list)
