@@ -12,17 +12,12 @@ table {
     border: 0.5px solid black;
     padding: 8px;
     text-align: left;
-    /* border-bottom: 2px solid black; */
-
-    /* border-radius: 25px; */
-    
   }
   th {
     background-color: #f0b762;
   }
   .parent{
     background-color: #d8eaf0;
-    /* height: 100vh; */
     padding: 20px;
 
     display: flex;

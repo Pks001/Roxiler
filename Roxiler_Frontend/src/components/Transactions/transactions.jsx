@@ -53,7 +53,6 @@ const Transactions = () => {
 
 
 //     const api_url = `https://s3.amazonaws.com/roxiler.com/product_transaction.json?month=${selectedMonth}&page=${page}&search=${searchInput}&perPage=10`;
-//             // `https://roxiler-backend-alpha.vercel.app?page=${page}&perPage=10&search=${searchInput}&month=${selectedMonth}`;
 //     async function getTransactions(){
 //             const response = await fetch(api_url);
 //             if(response){
@@ -71,8 +70,7 @@ const Transactions = () => {
 
 useEffect(()=>{
     const getTransactions = async ()=>{
-        const list = await axios.get(`http://localhost:3000/transactions?month=${selectedMonth}&page=${page}&search=${searchInput}&perPage=10`)
-        // `https://roxiler-backend-alpha.vercel.app?page=${page}&perPage=10&search=${searchInput}&month=${selectedMonth}`
+        const list = await axios.get(`http://localhost:3000/transactions?month=${selectedMonth}&page=${page}&search=${searchInput}&perPage=10`);
         if(list){
             console.log(list)
             setTransactionList(list.data.transactions)
