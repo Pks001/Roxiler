@@ -70,7 +70,7 @@ const Transactions = () => {
 
 useEffect(()=>{
     const getTransactions = async ()=>{
-        const list = await axios.get(`http://localhost:3000/transactions?month=${selectedMonth}&page=${page}&search=${searchInput}&perPage=10`);
+        const list = await axios.get(`https://roxiler-api1.onrender.com/transactions?month=${selectedMonth}&page=${page}&search=${searchInput}&perPage=10`);
         if(list){
             console.log(list)
             setTransactionList(list.data.transactions)

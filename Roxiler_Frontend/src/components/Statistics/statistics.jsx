@@ -9,7 +9,7 @@ const {selectedMonth} = props
 
   useEffect(() => {
     const getStatistics = async ()=>{
-        const statistics = await axios.get(`http://localhost:3000/statistics/?month=${selectedMonth}`)
+        const statistics = await axios.get(`https://roxiler-api1.onrender.com/statistics/?month=${selectedMonth}`)
         //https://roxiler-backend-vijaykumars-projects.vercel.app/statistics/
         console.log(statistics);
         
